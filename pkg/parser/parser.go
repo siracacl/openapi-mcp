@@ -902,7 +902,8 @@ func createBaseToolSet(title, desc string, cfg *config.Config) *mcp.ToolSet {
 func generateDefaultToolName(method, path string) string {
 	pathParts := strings.Split(strings.Trim(path, "/"), "/")
 	var nameParts []string
-	// Remove the HTTP method prefix - MCP clients already know the method
+	// Add HTTP method prefix since Claude uses it for function identification
+	nameParts = append(nameParts, strings.ToUpper(method[:1])+strings.ToLower(method[1:]))
 	for _, part := range pathParts {
 		if part == "" {
 			continue
