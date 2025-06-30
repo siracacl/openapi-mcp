@@ -902,7 +902,7 @@ func createBaseToolSet(title, desc string, cfg *config.Config) *mcp.ToolSet {
 func generateDefaultToolName(method, path string) string {
 	pathParts := strings.Split(strings.Trim(path, "/"), "/")
 	var nameParts []string
-	nameParts = append(nameParts, strings.ToUpper(method[:1])+strings.ToLower(method[1:]))
+	// Remove the HTTP method prefix - MCP clients already know the method
 	for _, part := range pathParts {
 		if part == "" {
 			continue
@@ -916,7 +916,13 @@ func generateDefaultToolName(method, path string) string {
 			nameParts = append(nameParts, sanitizedPart)
 		}
 	}
-	return strings.Join(nameParts, "")
+	fullName := strings.Join(nameParts, "")
+	
+	// Truncate to 60 characters to stay well under Claude's 64-char limit
+	if len(fullName) > 60 {
+		return fullName[:60]
+	}
+	return fullName
 }
 
 // shouldInclude determines if an operation should be included based on config filters.
