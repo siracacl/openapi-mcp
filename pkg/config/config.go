@@ -1,11 +1,8 @@
 package config
 
-import (
-	"log"
-	"os"
-)
+import "os"
 
-// APIKeyLocation specifies where the API key is located for requests.
+// APIKeyLocation defines where the API key is to be placed in the request.
 type APIKeyLocation string
 
 const (
@@ -13,58 +10,34 @@ const (
 	APIKeyLocationQuery  APIKeyLocation = "query"
 	APIKeyLocationPath   APIKeyLocation = "path"
 	APIKeyLocationCookie APIKeyLocation = "cookie"
-	// APIKeyLocationCookie APIKeyLocation = "cookie" // Add if needed
 )
 
-// Config holds the configuration for generating the MCP toolset.
+// Config holds the application's configuration.
 type Config struct {
-	SpecPath string // Path or URL to the OpenAPI specification file.
-
-	// API Key details (optional, inferred from spec if possible)
-	APIKey           string         // The actual API key value.
-	APIKeyName       string         // Name of the header or query parameter for the API key (e.g., "X-API-Key", "api_key").
-	APIKeyLocation   APIKeyLocation // Where the API key should be placed (header, query, path, or cookie).
-	APIKeyFromEnvVar string         // Environment variable name to read the API key from.
-
-	// Filtering (optional)
-	IncludeTags       []string // Only include operations with these tags.
-	ExcludeTags       []string // Exclude operations with these tags.
-	IncludeOperations []string // Only include operations with these IDs.
-	ExcludeOperations []string // Exclude operations with these IDs.
-
-	// Overrides (optional)
-	ServerBaseURL   string // Manually override the base URL for API calls, ignoring the spec's servers field.
-	DefaultToolName string // Name for the toolset if not specified in the spec's info section.
-	DefaultToolDesc string // Description for the toolset if not specified in the spec's info section.
-
-	// Server-side request modification
-	CustomHeaders string // Comma-separated list of headers (e.g., "Header1:Value1,Header2:Value2") to add to outgoing requests.
+	SpecPath          string
+	APIKey            string
+	APIKeyFromEnvVar  string
+	APIKeyName        string
+	APIKeyLocation    APIKeyLocation
+	IncludeTags       []string
+	ExcludeTags       []string
+	IncludeOperations []string
+	ExcludeOperations []string
+	ServerBaseURL     string
+	BaseURLHeader     string // New field for the dynamic base URL header
+	BasicAuthHeader   string // New field for the dynamic basic auth header
+	DefaultToolName   string
+	DefaultToolDesc   string
+	CustomHeaders     string
 }
 
-// GetAPIKey resolves the API key value, prioritizing the environment variable over the direct flag.
+// GetAPIKey resolves the API key from direct value or environment variable.
 func (c *Config) GetAPIKey() string {
-	log.Println("GetAPIKey: Attempting to resolve API key...")
-
-	// 1. Check environment variable specified by --api-key-env
-	if c.APIKeyFromEnvVar != "" {
-		log.Printf("GetAPIKey: Checking environment variable specified by --api-key-env: %s", c.APIKeyFromEnvVar)
-		val := os.Getenv(c.APIKeyFromEnvVar)
-		if val != "" {
-			log.Printf("GetAPIKey: Found key in environment variable %s.", c.APIKeyFromEnvVar)
-			return val
-		}
-		log.Printf("GetAPIKey: Environment variable %s not found or empty.", c.APIKeyFromEnvVar)
-	} else {
-		log.Println("GetAPIKey: No --api-key-env variable specified.")
-	}
-
-	// 2. Check direct flag --api-key
 	if c.APIKey != "" {
-		log.Println("GetAPIKey: Found key provided directly via --api-key flag.")
 		return c.APIKey
 	}
-
-	// 3. No key found
-	log.Println("GetAPIKey: No API key found from config (env var or direct flag).")
+	if c.APIKeyFromEnvVar != "" {
+		return os.Getenv(c.APIKeyFromEnvVar)
+	}
 	return ""
 }

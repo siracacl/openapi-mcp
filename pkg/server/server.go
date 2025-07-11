@@ -3,6 +3,7 @@ package server
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -435,7 +436,7 @@ func httpMethodPostHandler(w http.ResponseWriter, r *http.Request, toolSet *mcp.
 		case "tools/list":
 			respToSend = handleToolsListJSONRPC(connID, &req, toolSet)
 		case "tools/call":
-			respToSend = handleToolCallJSONRPC(connID, &req, toolSet, cfg)
+			respToSend = handleToolCallJSONRPC(connID, &req, toolSet, cfg, r)
 		default:
 			log.Printf("Received unknown JSON-RPC method '%s' for %s", req.Method, connID)
 			respToSend = createJSONRPCError(reqID, -32601, fmt.Sprintf("Method not found: %s", req.Method), nil)
@@ -520,7 +521,7 @@ func handleToolsListJSONRPC(connID string, req *jsonRPCRequest, toolSet *mcp.Too
 
 // executeToolCall performs the actual HTTP request based on the resolved operation and parameters.
 // It now correctly handles API key injection based on the *cfg* parameter.
-func executeToolCall(params *ToolCallParams, toolSet *mcp.ToolSet, cfg *config.Config) (*http.Response, error) {
+func executeToolCall(params *ToolCallParams, toolSet *mcp.ToolSet, cfg *config.Config, r *http.Request) (*http.Response, error) {
 	toolName := params.ToolName
 	toolInput := params.Input // This is the map[string]interface{} from the client
 
@@ -542,7 +543,12 @@ func executeToolCall(params *ToolCallParams, toolSet *mcp.ToolSet, cfg *config.C
 
 	// --- Prepare Request Components ---
 	baseURL := operation.BaseURL // Use BaseURL from the specific operation
-	if cfg.ServerBaseURL != "" {
+	if cfg.BaseURLHeader != "" {
+		if headerValue := r.Header.Get(cfg.BaseURLHeader); headerValue != "" {
+			baseURL = strings.TrimSuffix(headerValue, "/")
+			log.Printf("[ExecuteToolCall] Overriding base URL with header '%s': %s", cfg.BaseURLHeader, baseURL)
+		}
+	} else if cfg.ServerBaseURL != "" {
 		baseURL = cfg.ServerBaseURL // Override if global base URL is set
 		log.Printf("[ExecuteToolCall] Overriding base URL with global config: %s", baseURL)
 	}
@@ -705,6 +711,15 @@ func executeToolCall(params *ToolCallParams, toolSet *mcp.ToolSet, cfg *config.C
 		req.Header.Set("Content-Type", "application/json") // Assume JSON body if body exists
 	}
 
+	// Add basic auth header if specified
+	if cfg.BasicAuthHeader != "" {
+		if headerValue := r.Header.Get(cfg.BasicAuthHeader); headerValue != "" {
+			encodedAuth := base64.StdEncoding.EncodeToString([]byte(headerValue))
+			req.Header.Set("Authorization", "Basic "+encodedAuth)
+			log.Printf("[ExecuteToolCall] Added Basic Auth header from '%s'", cfg.BasicAuthHeader)
+		}
+	}
+
 	// Add headers collected from input/spec AND potentially injected API key
 	for key, values := range headerParams {
 		// Note: We use Set, assuming single value per header from input typically.
@@ -714,18 +729,16 @@ func executeToolCall(params *ToolCallParams, toolSet *mcp.ToolSet, cfg *config.C
 		}
 	}
 
-	// Add custom headers from config (comma-separated)
+	// Forward custom headers from the original request based on config
 	if cfg.CustomHeaders != "" {
-		headers := strings.Split(cfg.CustomHeaders, ",")
-		for _, h := range headers {
-			parts := strings.SplitN(h, ":", 2)
-			if len(parts) == 2 {
-				headerName := strings.TrimSpace(parts[0])
-				headerValue := strings.TrimSpace(parts[1])
-				if headerName != "" {
-					req.Header.Set(headerName, headerValue) // Set overrides potential input
-					log.Printf("[ExecuteToolCall] Added custom header from config: %s", headerName)
-				}
+		headersToForward := strings.Split(cfg.CustomHeaders, ",")
+		for _, headerName := range headersToForward {
+			headerName = strings.TrimSpace(headerName)
+			// Check if the header exists in the incoming request
+			if headerValue := r.Header.Get(headerName); headerValue != "" {
+				// If it exists, set it on the outgoing request
+				req.Header.Set(headerName, headerValue)
+				log.Printf("[ExecuteToolCall] Forwarded header '%s' from incoming request.", headerName)
 			}
 		}
 	}
@@ -754,7 +767,7 @@ func executeToolCall(params *ToolCallParams, toolSet *mcp.ToolSet, cfg *config.C
 	return resp, nil
 }
 
-func handleToolCallJSONRPC(connID string, req *jsonRPCRequest, toolSet *mcp.ToolSet, cfg *config.Config) jsonRPCResponse {
+func handleToolCallJSONRPC(connID string, req *jsonRPCRequest, toolSet *mcp.ToolSet, cfg *config.Config, r *http.Request) jsonRPCResponse {
 	// req.Params is interface{}, but should contain json.RawMessage for tools/call
 	rawParams, ok := req.Params.(json.RawMessage)
 	if !ok {
@@ -786,7 +799,7 @@ func handleToolCallJSONRPC(connID string, req *jsonRPCRequest, toolSet *mcp.Tool
 	log.Printf("Executing tool '%s' for %s with input: %+v", params.ToolName, connID, params.Input)
 
 	// --- Execute the actual tool call ---
-	httpResp, execErr := executeToolCall(&params, toolSet, cfg)
+	httpResp, execErr := executeToolCall(&params, toolSet, cfg, r)
 
 	// --- Process Response ---
 	var resultPayload ToolResultPayload

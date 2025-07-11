@@ -47,6 +47,8 @@ func main() {
 	flag.Var(&excludeOps, "exclude-op", "Operation ID to exclude (can be repeated)")
 
 	serverBaseURL := flag.String("base-url", "", "Manually override the server base URL")
+	baseURLHeader := flag.String("base-url-header", "", "Header to read for dynamic base URL override")
+	basicAuthHeader := flag.String("basic-auth-header", "", "Header to read for dynamic basic auth credentials")
 	defaultToolName := flag.String("name", "OpenAPI-MCP Tools", "Default name for the toolset")
 	defaultToolDesc := flag.String("desc", "Tools generated from OpenAPI spec", "Default description for the toolset")
 
@@ -115,6 +117,8 @@ func main() {
 		IncludeOperations: includeOps,
 		ExcludeOperations: excludeOps,
 		ServerBaseURL:     *serverBaseURL,
+		BaseURLHeader:     *baseURLHeader,
+		BasicAuthHeader:   *basicAuthHeader,
 		DefaultToolName:   *defaultToolName,
 		DefaultToolDesc:   *defaultToolDesc,
 		CustomHeaders:     customHeadersEnv,
