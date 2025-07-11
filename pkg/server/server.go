@@ -106,7 +106,7 @@ func ServeMCP(addr string, toolSet *mcp.ToolSet, cfg *config.Config) error {
 		// CORS Headers (Apply to all relevant requests)
 		w.Header().Set("Access-Control-Allow-Origin", "*") // Be more specific in production
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With, X-Connection-ID")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With, X-Connection-ID, bauth, burl")
 		w.Header().Set("Access-Control-Expose-Headers", "X-Connection-ID")
 
 		if r.Method == http.MethodOptions {
